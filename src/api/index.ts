@@ -15,7 +15,7 @@ import {
 } from "class-validator";
 import { IsValidIntAttributes } from "../util/validate-int-attributes";
 
-export default (rootDirectory, options) => {
+export default (rootDirectory: string, options: any): Router => {
   const route = Router();
 
   route.use(bodyParser.json());
