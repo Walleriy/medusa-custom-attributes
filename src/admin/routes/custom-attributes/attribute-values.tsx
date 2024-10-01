@@ -148,7 +148,7 @@ export const AttributeValues = ({
   const onChange =
     (key: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
       const newValues = [...values];
-      newValues[key] = { value: e.target.value };
+      newValues[key] = { ...newValues[key], value: e.target.value };
       setValues(newValues);
     };
 

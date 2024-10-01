@@ -53,7 +53,8 @@ class ProductService extends MedusaProductService {
     product.attribute_values.forEach((av) => {
       const { attribute, ...valueWithoutAttribute } = av;
 
-      if (!attributesMap.has(attribute.id)) {
+      if (!attribute) return;
+      if (!attributesMap.has(attribute?.id)) {
         attributesMap.set(attribute.id, {
           ...attribute,
           values: [valueWithoutAttribute as AttributeValue],
