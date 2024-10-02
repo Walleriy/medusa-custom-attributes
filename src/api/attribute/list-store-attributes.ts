@@ -11,7 +11,7 @@ export default async (req, res) => {
   const attributes = await attributeService.list(validated, {
     where: { filterable: true },
     relations: ["values"],
-    select: ["id", "name", "values", "type", "handle", "metadata"],
+    select: ["id", "name", "values", "type", "handle", "metadata", "description"],
   });
 
   res.json({ attributes });
