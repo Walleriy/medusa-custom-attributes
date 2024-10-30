@@ -197,6 +197,50 @@ class ProductService extends MedusaProductService {
     return [products, count];
   }
 
+  async getAttributeIdsFromDB(valueIds: string[]): Promise<{ attributeId: string, valueId: string }[]> {
+    const manager = this.activeManager_;
+    const attributeValueRepo = manager.withRepository(this.attributeValueRepository_);
+
+    const attributes = await attributeValueRepo
+        .createQueryBuilder('attribute_values')
+        .leftJoinAndSelect('attribute_values.attribute', 'attribute')
+        .select([
+          'attribute.id AS attributeId',
+          'attribute_values.id AS valueId'
+        ])
+        .where('attribute_values.id IN (:...valueIds)', { valueIds })
+        .getRawMany();
+
+    return attributes.map(attr => ({
+      attributeId: attr.attributeid,
+      valueId: attr.valueid
+    }));
+  }
+
+  async parseAttributes(attributeValues: string[]): Promise<any[]> {
+    const attributeIds = await this.getAttributeIdsFromDB(attributeValues);
+
+    const groupedAttributes = attributeIds.reduce((acc, attribute) => {
+      const { attributeId, valueId } = attribute;
+
+      let attrGroup = acc.find(attr => attr.attr === attributeId);
+
+      if (!attrGroup) {
+        attrGroup = {
+          attr: attributeId,
+          values: []
+        };
+        acc.push(attrGroup);
+      }
+
+      attrGroup.values.push(valueId);
+
+      return acc;
+    }, []);
+
+    return groupedAttributes;
+  }
+
   /**
    * Copying function from repo due to error `TypeError: productRepo.findWithRelationsAndCount is not a function`
    */
@@ -276,14 +320,31 @@ class ProductService extends MedusaProductService {
     }
 
     if (attributes) {
-      qb.leftJoinAndSelect(
-        `${productAlias}.attribute_values`,
-        "attribute_values"
-      );
-      qb.leftJoinAndSelect(`attribute_values.attribute`, "attribute");
+      const parsedAttributes = await this.parseAttributes(attributes);
 
-      qb.andWhere(`attribute_values.id IN (:...values)`, {
-        values: attributes,
+      qb.leftJoinAndSelect(`${productAlias}.attribute_values`, "attribute_values")
+          .leftJoinAndSelect("attribute_values.attribute", "attribute");
+
+      parsedAttributes.forEach((attribute, index) => {
+        qb.andWhere(
+            new Brackets(qbExists => {
+              qbExists
+                  .andWhere(`EXISTS (
+            SELECT 1
+            FROM "public"."attribute_value" AS "attr_values_${index}"
+            INNER JOIN "public"."attribute" AS "attr_${index}"
+              ON "attr_${index}".id = "attr_values_${index}"."attributeId"
+            INNER JOIN "public"."product_attribute_values_attribute_value" AS "pav_${index}"
+              ON "pav_${index}"."attributeValueId" = "attr_values_${index}".id
+            WHERE "attr_${index}".id = :attrId_${index}
+              AND "attr_values_${index}".id IN (:...attrValues_${index})
+              AND "pav_${index}"."productId" = ${productAlias}.id
+          )`, {
+                    [`attrId_${index}`]: attribute.attr,
+                    [`attrValues_${index}`]: attribute.values,
+                  });
+            })
+        );
       });
     }
 
